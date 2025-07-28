@@ -1,103 +1,303 @@
-import Image from "next/image";
+'use client';
+import { useState, useRef, useEffect, type FormEvent } from 'react';
+import { Send, RotateCcw, Settings } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
+import ReactMarkdown from 'react-markdown';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 
-export default function Home() {
+// Definición de tipos para los mensajes
+type MessageRole = 'user' | 'assistant';
+
+interface Message {
+  role: MessageRole;
+  content: string;
+}
+
+export default function TestFlows() {
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [isConfigured, setIsConfigured] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState(uuidv4());
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
+
+  // Auto-resize del textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [input]);
+
+  // Función para configurar el webhook
+  const handleWebhookSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (webhookUrl.trim()) {
+      setIsConfigured(true);
+    }
+  };
+
+  // Función para reiniciar el chat
+  const handleResetChat = () => {
+    setMessages([]);
+    setSessionId(uuidv4());
+    setInput('');
+  };
+
+  // Función para volver a la configuración
+  const handleReconfigure = () => {
+    setIsConfigured(false);
+    setMessages([]);
+    setSessionId(uuidv4());
+    setInput('');
+    setWebhookUrl('');
+  };
+
+  // Función para manejar el envío de mensajes
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    const userMessage: Message = {
+      role: 'user',
+      content: input,
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-Id': sessionId,
+        },
+        body: JSON.stringify({ message: input }),
+      });
+
+      const data = await response.json();
+      console.log('Respuesta del webhook:', data);
+
+      // Agregar respuesta del asistente
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: data[0].message || 'Error al obtener respuesta',
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Error al enviar mensaje:', error);
+      // Mensaje de error en caso de fallo
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: 'Lo siento, ha ocurrido un error al procesar tu mensaje.',
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Efecto para enviar automáticamente el mensaje TEST_FLOW al iniciar el chat
+  useEffect(() => {
+    if (isConfigured && webhookUrl) {
+      // Enviar POST invisible al webhook con el mensaje TEST_FLOW
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-Id': sessionId,
+        },
+        body: JSON.stringify({ message: 'TEST_FLOW' }),
+      }).catch(() => {}); // Ignorar errores
+    }
+    // Solo debe ejecutarse una vez al configurar
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConfigured, webhookUrl, sessionId]);
+
+  // Pantalla de configuración del webhook
+  if (!isConfigured) {
+    return (
+      <div className='min-h-screen bg-gray-50 flex items-center justify-center p-4'>
+        <Card className='w-full max-w-md'>
+          <CardHeader>
+            <CardTitle className='text-center'>Test Flows</CardTitle>
+            <p className='text-sm text-gray-600 text-center'>
+              Configura el webhook para comenzar
+            </p>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleWebhookSubmit} className='space-y-4'>
+              <div>
+                <Label htmlFor='webhook'>URL del Webhook</Label>
+                <Input
+                  id='webhook'
+                  type='url'
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  placeholder='https://ejemplo.com/webhook'
+                  required
+                />
+              </div>
+              <Button type='submit' className='w-full'>
+                Iniciar Chat
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Interfaz principal del chat
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className='min-h-screen bg-gray-50'>
+      {/* Header */}
+      <div className='bg-white border-b border-gray-200 px-4 py-3'>
+        <div className='max-w-3xl mx-auto flex items-center justify-between'>
+          <h1 className='text-xl font-semibold text-gray-800'>Test Flows</h1>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={handleResetChat}
+              className='flex items-center gap-2 bg-transparent'
+            >
+              <RotateCcw size={16} />
+              Reiniciar Chat
+            </Button>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={handleReconfigure}
+              className='flex items-center gap-2 bg-transparent'
+            >
+              <Settings size={16} />
+              Configurar
+            </Button>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+
+      {/* Chat Container */}
+      <div className='xl:w-2/5 w-full h-[calc(100vh-70px)] mx-auto flex flex-col justify-between'>
+        {/* Contenedor de chat con altura controlada */}
+        <div className='flex-1 overflow-auto p-4 h-full'>
+          <div className='max-w-3xl mx-auto space-y-4'>
+            {messages.length === 0 ? (
+              <div className='text-center py-20'>
+                <h2 className='text-2xl font-semibold text-gray-800 mb-4'>
+                  Escribe tu primer mensaje...
+                </h2>
+                <div className='mt-4 text-xs text-gray-500'>
+                  Session ID: {sessionId}
+                </div>
+              </div>
+            ) : (
+              <div className='xl:pb-2 pb-0 pt-4 w-full'>
+                {messages.map((message, index) => (
+                  <div
+                    key={index}
+                    className={`px-2 md:px-6 lg:px-8 max-w-3xl mx-auto xl:mb-2 ${
+                      message.role !== 'assistant' ? 'flex justify-end' : ''
+                    }`}
+                  >
+                    <div
+                      className={`flex items-start gap-4 py-4 ${
+                        message.role !== 'assistant' ? 'justify-end' : ''
+                      }`}
+                    >
+                      <div
+                        className={`flex-1 max-w-none text-gray-800 ${
+                          message.role === 'assistant'
+                            ? ''
+                            : 'bg-[#e9e9e980] rounded-lg px-4 py-2 max-w-fit'
+                        }`}
+                      >
+                        {message.role === 'assistant' ? (
+                          <div className='prose'>
+                            <ReactMarkdown>{message.content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          message.content
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {isLoading && (
+                  <div className='px-4 md:px-6 lg:px-8 max-w-3xl mx-auto mb-4'>
+                    <div className='flex items-start gap-4 py-4'>
+                      <div className='flex-1'>
+                        <div className='flex space-x-2 items-center h-6'>
+                          <div className='w-2 h-2 rounded-full bg-gray-300 animate-bounce'></div>
+                          <div className='w-2 h-2 rounded-full bg-gray-300 animate-bounce delay-75'></div>
+                          <div className='w-2 h-2 rounded-full bg-gray-300 animate-bounce delay-150'></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Elemento de referencia para el scroll */}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Área de entrada */}
+        <div className='px-0 xl:px-4 py-2 border-t border-gray-200'>
+          <div className='max-w-3xl mx-auto px-4'>
+            <form onSubmit={handleSubmit} className='relative'>
+              <div className='flex items-center overflow-hidden rounded-lg border border-gray-200 shadow-sm focus-within:border-sky-500 focus-within:ring-0 focus-within:ring-sky-500'>
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (input.trim()) {
+                        handleSubmit(
+                          e as unknown as FormEvent<HTMLFormElement>
+                        );
+                      }
+                    }
+                  }}
+                  placeholder='Escribe tu mensaje...'
+                  className='w-full resize-none border-0 bg-transparent p-3 focus:outline-none focus:ring-0 text-gray-800 max-h-[200px]'
+                  rows={1}
+                />
+                <button
+                  type='submit'
+                  className='p-2 rounded-md text-sky-600 hover:text-sky-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
+                  disabled={isLoading || !input.trim()}
+                >
+                  <Send size={20} />
+                </button>
+              </div>
+              <p className='mt-2 text-xs text-gray-500 text-center hidden xl:block'>
+                Presiona Enter para enviar, Shift+Enter para nueva línea
+              </p>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
