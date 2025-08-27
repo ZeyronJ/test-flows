@@ -96,7 +96,7 @@ export default function TestFlows() {
       // Agregar respuesta del asistente
       const assistantMessage: Message = {
         role: 'assistant',
-        content: data[0].message || 'Error al obtener respuesta',
+        content: data[0].output || 'Error al obtener respuesta',
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
